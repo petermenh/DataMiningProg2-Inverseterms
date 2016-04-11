@@ -26,7 +26,6 @@ import matplotlib.pyplot as plt
 mytokenizer = RegexpTokenizer(r'[a-zA-Z0-9]{2,}')
 stemmer = PorterStemmer()
 sortedstopwords = sorted(stopwords.words('english'))
-total_puid_att = []
 total_puid_prod_des = []
 dfs = {}
 idfs = {}
@@ -139,8 +138,8 @@ start_time = time.time()
 csvAtt = pandas.read_csv('attributes2.csv')
 
 for i in range(0,len(csvAtt)):
-    if csvAtt.product_uid[i] not in total_puid_att:
-        total_puid_att.append(csvAtt.product_uid[i])
+    if csvAtt.product_uid[i] not in attPuidDict:
+        attPuidDict[csvAtt.product_uid[i]] = {'tfidf_list':[], 'veclen':0}
 
     if type(csvAtt.name[i])==float:
         if math.isnan(csvAtt.name[i]):
@@ -150,13 +149,25 @@ for i in range(0,len(csvAtt)):
 
     if type(csvAtt.value[i])==float:
         if math.isnan(csvAtt.value[i]):
-            nameTok = tokenize(" ")
+            valueTok = tokenize(" ")
     else:
         valueTok = tokenize(csvAtt.value[i])
 
     for term in nameTok:
         if term not in attTermDict:
-            attTermDict[term] = {'puids':{}, 'df':0}
+            attTermDict[term] = {'puids':{}, 'df':0, 'idf':0}
+            attTermDict[term]['puids'][csvAtt.product_uid[i]] = {'tf':1, 'tfidf':0, 'cosNormWt':0}
+            attTermDict[term]['df'] = len(attTermDict[term]['puids'])
+        else:
+            if csvAtt.product_uid[i] not in attTermDict[term]['puids']:
+                attTermDict[term]['puids'][csvAtt.product_uid[i]] = {'tf':1, 'tfidf':0, 'cosNormWt':0}
+                attTermDict[term]['df'] = len(attTermDict[term]['puids'])
+            else:
+                attTermDict[term]['puids'][csvAtt.product_uid[i]]['tf'] +=1
+
+    for term in valueTok:
+        if term not in attTermDict:
+            attTermDict[term] = {'puids':{}, 'df':0, 'idf':0}
             attTermDict[term]['puids'][csvAtt.product_uid[i]] = {'tf':1, 'tfidf':0, 'cosNormWt':0}
             attTermDict[term]['df'] = len(attTermDict[term]['puids'])
         else:
@@ -169,20 +180,36 @@ for i in range(0,len(csvAtt)):
 print('Attribute time: ', time.time()-start_time)
 
 #---------attribute tfidf/ cosine length normalized--------------
+start_time = time.time()
 att_tf = 0
 att_idf = 0
-att_veclen = 0
-attN = len(total_puid_att)
-start_time = time.time()
+attN = len(attPuidDict)
+
 for term in attTermDict:
     for p in attTermDict[term]['puids']:
         att_tf = 1 + log10(attTermDict[term]['puids'][p]['tf'])
-        att_idf = log10(attN/attTermDict[term]['df'])
+        att_idf = log10( 1 + (attN/attTermDict[term]['df']) )
+        attTermDict[term]['idf'] = att_idf
         attTermDict[term]['puids'][p]['tfidf'] = att_tf * att_idf
-        
+        attPuidDict[p]['tfidf_list'].append(att_tf * att_idf)
 
+print('Att tfidf time: ', time.time()-start_time)
 
-print('Att tfidf/cosine length time: ', time.time()-start_time)
+start_time = time.time()
+
+for p in attPuidDict:
+    attVectorLength=0
+    for i in attPuidDict[p]['tfidf_list']:
+        attVectorLength = attVectorLength + (i**2)
+    attVectorLength = sqrt(attVectorLength)
+    attPuidDict[p]['veclen'] = attVectorLength
+
+for term in attTermDict:
+    for p in attTermDict[term]['puids']:
+        if p in attPuidDict:
+            attTermDict[term]['puids'][p]['cosNormWt'] = attTermDict[term]['puids'][p]['tfidf']/attPuidDict[p]['veclen']
+
+print('cosine length time: ', time.time()-start_time)
 
 
 #----------read product descriptions----------------
