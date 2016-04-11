@@ -26,11 +26,14 @@ import matplotlib.pyplot as plt
 mytokenizer = RegexpTokenizer(r'[a-zA-Z0-9]{2,}')
 stemmer = PorterStemmer()
 sortedstopwords = sorted(stopwords.words('english'))
+total_puid_att = []
+total_puid_prod_des = []
 dfs = {}
 idfs = {}
-termDict = {}
-speechvecs = {}
 total_word_counts = {}
+attTermDict = {}
+attPuidDict = {}
+attVectorLength = 0
 
 def tokenize(doc):
     tokens = mytokenizer.tokenize(doc)
@@ -130,12 +133,15 @@ def check_if_num(a):
 
 #----------------Main------------------------------------------
 
-#----------read attributes--------------
+#----------read attributes, calc tfidf--------------
 start_time = time.time()
 
-csvAtt = pandas.read_csv('attributes.csv')
+csvAtt = pandas.read_csv('attributes2.csv')
 
 for i in range(0,len(csvAtt)):
+    if csvAtt.product_uid[i] not in total_puid_att:
+        total_puid_att.append(csvAtt.product_uid[i])
+
     if type(csvAtt.name[i])==float:
         if math.isnan(csvAtt.name[i]):
             nameTok = tokenize(" ")
@@ -149,36 +155,43 @@ for i in range(0,len(csvAtt)):
         valueTok = tokenize(csvAtt.value[i])
 
     for term in nameTok:
-    	if term not in termDict:
-    		termDict[term] = {csvAtt.product_uid[i]:1}
-    	else:
-    		if csvAtt.product_uid[i] not in termDict[term]:
-    			termDict[term][csvAtt.product_uid[i]] = 1
-    		else:
-    			termDict[term][csvAtt.product_uid[i]] +=1
+        if term not in attTermDict:
+            attTermDict[term] = {'puids':{}, 'df':0}
+            attTermDict[term]['puids'][csvAtt.product_uid[i]] = {'tf':1, 'tfidf':0, 'cosNormWt':0}
+            attTermDict[term]['df'] = len(attTermDict[term]['puids'])
+        else:
+            if csvAtt.product_uid[i] not in attTermDict[term]['puids']:
+                attTermDict[term]['puids'][csvAtt.product_uid[i]] = {'tf':1, 'tfidf':0, 'cosNormWt':0}
+                attTermDict[term]['df'] = len(attTermDict[term]['puids'])
+            else:
+                attTermDict[term]['puids'][csvAtt.product_uid[i]]['tf'] +=1
 
 print('Attribute time: ', time.time()-start_time)
+
+#---------attribute tfidf/ cosine length normalized--------------
+att_tf = 0
+att_idf = 0
+att_veclen = 0
+attN = len(total_puid_att)
+start_time = time.time()
+for term in attTermDict:
+    for p in attTermDict[term]['puids']:
+        att_tf = 1 + log10(attTermDict[term]['puids'][p]['tf'])
+        att_idf = log10(attN/attTermDict[term]['df'])
+        attTermDict[term]['puids'][p]['tfidf'] = att_tf * att_idf
+        
+
+
+print('Att tfidf/cosine length time: ', time.time()-start_time)
 
 
 #----------read product descriptions----------------
 start_time = time.time()
 
-csvAtt = pandas.read_csv('product_descriptions2.csv')
+#csvAtt = pandas.read_csv('product_descriptions2.csv')
 
 
 
 
 print('Product Description time: ', time.time()-start_time)
 
-'''
-doc = doc.lower()  
-tokens = tokenize(doc)
-tfvec = Counter(tokens)     
-attributesDict["attributes"] = tfvec
-incdfs(tfvec)
-
-ndoc = len(attributesDict)
-
-for token,df in dfs.items():
-	idfs[token] = log10(ndoc/df)
-'''
