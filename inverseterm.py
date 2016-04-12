@@ -27,9 +27,6 @@ mytokenizer = RegexpTokenizer(r'[a-zA-Z0-9]{2,}')
 stemmer = PorterStemmer()
 sortedstopwords = sorted(stopwords.words('english'))
 total_puid_prod_des = []
-dfs = {}
-idfs = {}
-total_word_counts = {}
 attTermDict = {}
 attPuidDict = {}
 prodDesTermDict = {}
@@ -43,89 +40,6 @@ def tokenize(doc):
     filteredtokens = [stemmer.stem(token) for token in lowertokens if not token in sortedstopwords]
     return filteredtokens
 
-def incdfs(tfvec):
-    for token in set(tfvec):
-        if token not in dfs:
-            dfs[token]=1
-            total_word_counts[token] = tfvec[token]
-        else:
-            dfs[token] += 1
-            total_word_counts[token] += tfvec[token]
-            
-
-def getcount(token):
-    if token in total_word_counts:
-        return total_word_counts[token]
-    else:
-        return 0
-
-def readfiles(corpus_root):
-    for filename in os.listdir(corpus_root):
-        f = open(os.path.join(corpus_root, filename), "r", encoding='UTF-8')
-        doc = f.read()
-        f.close() 
-        doc = doc.lower()  
-        tokens = tokenize(doc)
-        tfvec = Counter(tokens)     
-        attributesDict[filename] = tfvec
-        incdfs(tfvec)
-    
-    ndoc = len(attributesDict)
-    for token,df in dfs.items():
-        idfs[token] = log10(ndoc/df)
-
-def calctfidfvec(tfvec, withidf):
-    tfidfvec = {}
-    veclen = 0.0
-
-    for token in tfvec:
-        if withidf:
-            tfidf = (1+log10(tfvec[token])) * getidf(token)
-        else:
-            tfidf = (1+log10(tfvec[token]))
-        tfidfvec[token] = tfidf 
-        veclen += pow(tfidf,2)
-
-    if veclen > 0:
-        for token in tfvec: 
-            tfidfvec[token] /= sqrt(veclen)
-    
-    return tfidfvec
-   
-def cosinesim(vec1, vec2):
-    commonterms = set(vec1).intersection(vec2)
-    sim = 0.0
-    for token in commonterms:
-        sim += vec1[token]*vec2[token]
-        
-    return sim
-
-def getqvec(qstring):
-    tokens = tokenize(qstring)
-    tfvec = Counter(tokens)
-    qvec = calctfidfvec(tfvec, False)
-    return qvec
-    
-def query(qstring):
-    qvec = getqvec(qstring.lower())
-    scores = {filename:cosinesim(qvec,tfidfvec) for filename, tfidfvec in speechvecs.items()}  
-    return max(scores.items(), key=operator.itemgetter(1))[0]
-    
-def gettfidfvec(filename):
-    return speechvecs[filename]
-    
-def getidf(token):
-    if token not in idfs: 
-        return 0
-    else: 
-        return idfs[token]
-    
-def docdocsim(filename1,filename2):
-    return cosinesim(gettfidfvec(filename1),gettfidfvec(filename2))
-    
-def querydocsim(qstring,filename):
-    return cosinesim(getqvec(qstring),gettfidfvec(filename))
-
 def check_if_num(a):
    try:
        float(a)
@@ -137,10 +51,15 @@ def check_if_num(a):
 
 #----------read attributes, calc tfidf--------------
 start_time = time.time()
-
+count = 0
 csvAtt = pandas.read_csv('attributes2.csv')
-
+print('0% done...')
 for i in range(0,len(csvAtt)):
+    count +=1
+    if count == 1000:
+        print('%{0:.0f} done...'.format((i/len(csvAtt))*100) )
+        count = 0
+
     if csvAtt.product_uid[i] not in attPuidDict:
         attPuidDict[csvAtt.product_uid[i]] = {'tfidf_list':[], 'veclen':0}
 
@@ -179,7 +98,7 @@ for i in range(0,len(csvAtt)):
                 attTermDict[term]['df'] = len(attTermDict[term]['puids'])
             else:
                 attTermDict[term]['puids'][csvAtt.product_uid[i]]['tf'] +=1
-
+print('done')
 print('Attribute time: ', time.time()-start_time)
 
 #---------attribute tfidf/ cosine length normalized--------------
@@ -216,10 +135,11 @@ print('Attribute cosine length time: ', time.time()-start_time)
 
 print()
 
+'''
 #----------read product descriptions----------------
 start_time = time.time()
 
-csvProdDes = pandas.read_csv('product_descriptions2.csv')
+csvProdDes = pandas.read_csv('product_descriptionsshort.csv')
 for i in range(0,len(csvProdDes)):
     if csvProdDes.product_uid[i] not in prodDesPuidDict:
         prodDesPuidDict[csvProdDes.product_uid[i]] = {'tfidf_list':[], 'veclen':0}
@@ -247,6 +167,7 @@ for i in range(0,len(csvProdDes)):
 print('Product Description time: ', time.time()-start_time)
 
 #------------product description tfidf/cosine lengths---------
+
 start_time = time.time()
 prodDes_tf = 0
 prodDes_idf = 0
@@ -277,3 +198,8 @@ for term in prodDesTermDict:
             prodDesTermDict[term]['puids'][p]['cosNormWt'] = prodDesTermDict[term]['puids'][p]['tfidf']/prodDesPuidDict[p]['veclen']
 
 print('Product Description cosine length time: ', time.time()-start_time)
+'''
+#---------read test and output result
+start_time = time.time()
+csvTest = pandas.read_csv('testshort.csv')
+print('test time: ', time.time()-start_time)
