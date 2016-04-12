@@ -8,7 +8,7 @@ References used:
 http://www.nltk.org/index.html
 http://www.nltk.org/book/ch01.html
 
-Code snippets from programming assignment 1
+Code snippets from programming assignment 1 solution
 '''
 import math
 import time
@@ -32,7 +32,10 @@ idfs = {}
 total_word_counts = {}
 attTermDict = {}
 attPuidDict = {}
+prodDesTermDict = {}
+prodDesPuidDict = {}
 attVectorLength = 0
+prodDesVectorLength = 0
 
 def tokenize(doc):
     tokens = mytokenizer.tokenize(doc)
@@ -193,7 +196,7 @@ for term in attTermDict:
         attTermDict[term]['puids'][p]['tfidf'] = att_tf * att_idf
         attPuidDict[p]['tfidf_list'].append(att_tf * att_idf)
 
-print('Att tfidf time: ', time.time()-start_time)
+print('Attribute tfidf time: ', time.time()-start_time)
 
 start_time = time.time()
 
@@ -209,16 +212,68 @@ for term in attTermDict:
         if p in attPuidDict:
             attTermDict[term]['puids'][p]['cosNormWt'] = attTermDict[term]['puids'][p]['tfidf']/attPuidDict[p]['veclen']
 
-print('cosine length time: ', time.time()-start_time)
+print('Attribute cosine length time: ', time.time()-start_time)
 
+print()
 
 #----------read product descriptions----------------
 start_time = time.time()
 
-#csvAtt = pandas.read_csv('product_descriptions2.csv')
+csvProdDes = pandas.read_csv('product_descriptions2.csv')
+for i in range(0,len(csvProdDes)):
+    if csvProdDes.product_uid[i] not in prodDesPuidDict:
+        prodDesPuidDict[csvProdDes.product_uid[i]] = {'tfidf_list':[], 'veclen':0}
 
+    if type(csvProdDes.product_description[i])==float:
+        if math.isnan(csvProdDes.product_description[i]):
+            prodDesTok = tokenize(" ")
+    else:
+        prodDesTok = tokenize(csvProdDes.product_description[i])
+
+    for term in prodDesTok:
+        if term not in prodDesTermDict:
+            prodDesTermDict[term] = {'puids':{}, 'df':0, 'idf':0}
+            prodDesTermDict[term]['puids'][csvProdDes.product_uid[i]] = {'tf':1, 'tfidf':0, 'cosNormWt':0}
+            prodDesTermDict[term]['df'] = len(prodDesTermDict[term]['puids'])
+        else:
+            if csvProdDes.product_uid[i] not in prodDesTermDict[term]['puids']:
+                prodDesTermDict[term]['puids'][csvProdDes.product_uid[i]] = {'tf':1, 'tfidf':0, 'cosNormWt':0}
+                prodDesTermDict[term]['df'] = len(prodDesTermDict[term]['puids'])
+            else:
+                prodDesTermDict[term]['puids'][csvProdDes.product_uid[i]]['tf'] +=1
 
 
 
 print('Product Description time: ', time.time()-start_time)
 
+#------------product description tfidf/cosine lengths---------
+start_time = time.time()
+prodDes_tf = 0
+prodDes_idf = 0
+prodDesN = len(prodDesPuidDict)
+
+for term in prodDesTermDict:
+    for p in prodDesTermDict[term]['puids']:
+        prodDes_tf = 1 + log10(prodDesTermDict[term]['puids'][p]['tf'])
+        prodDes_idf = log10( 1 + (prodDesN/prodDesTermDict[term]['df']) )
+        prodDesTermDict[term]['idf'] = prodDes_idf
+        prodDesTermDict[term]['puids'][p]['tfidf'] = prodDes_tf * prodDes_idf
+        prodDesPuidDict[p]['tfidf_list'].append(prodDes_tf * prodDes_idf)
+
+print('Product Description tfidf time: ', time.time()-start_time)
+
+start_time = time.time()
+
+for p in prodDesPuidDict:
+    prodDesVectorLength=0
+    for i in prodDesPuidDict[p]['tfidf_list']:
+        prodDesVectorLength = prodDesVectorLength + (i**2)
+    prodDesVectorLength = sqrt(prodDesVectorLength)
+    prodDesPuidDict[p]['veclen'] = prodDesVectorLength
+
+for term in prodDesTermDict:
+    for p in prodDesTermDict[term]['puids']:
+        if p in prodDesPuidDict:
+            prodDesTermDict[term]['puids'][p]['cosNormWt'] = prodDesTermDict[term]['puids'][p]['tfidf']/prodDesPuidDict[p]['veclen']
+
+print('Product Description cosine length time: ', time.time()-start_time)
