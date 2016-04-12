@@ -22,8 +22,10 @@ from nltk.stem.porter import PorterStemmer
 import pandas
 import numpy
 import matplotlib.pyplot as plt
+import csv as csv
 
-mytokenizer = RegexpTokenizer(r'[a-zA-Z0-9]{2,}')
+#mytokenizer = RegexpTokenizer(r'[a-zA-Z0-9]{2,}')
+mytokenizer = RegexpTokenizer(r'[a-zA-Z0-9]+')
 stemmer = PorterStemmer()
 sortedstopwords = sorted(stopwords.words('english'))
 total_puid_prod_des = []
@@ -52,11 +54,11 @@ def check_if_num(a):
 #----------read attributes, calc tfidf--------------
 start_time = time.time()
 count = 0
-csvAtt = pandas.read_csv('attributes2.csv')
+csvAtt = pandas.read_csv('attributes.csv')
 print('0% done...')
 for i in range(0,len(csvAtt)):
     count +=1
-    if count == 1000:
+    if count == 100000:
         print('%{0:.0f} done...'.format((i/len(csvAtt))*100) )
         count = 0
 
@@ -99,6 +101,7 @@ for i in range(0,len(csvAtt)):
             else:
                 attTermDict[term]['puids'][csvAtt.product_uid[i]]['tf'] +=1
 print('done')
+print()
 print('Attribute time: ', time.time()-start_time)
 
 #---------attribute tfidf/ cosine length normalized--------------
@@ -201,5 +204,37 @@ print('Product Description cosine length time: ', time.time()-start_time)
 '''
 #---------read test and output result
 start_time = time.time()
-csvTest = pandas.read_csv('testshort.csv')
+
+csvTest = pandas.read_csv('test.csv', sep=",", encoding="ISO-8859-1")
+
+with open('subtest.csv', 'w', newline='') as outfile:
+    writer = csv.writer(outfile, delimiter=',', quotechar = "'")
+    writer.writerow(['"id"']+['"relevance"'])
+    for i in range(0,len(csvTest)):
+        searchDict = {}
+        relevance = 2
+        searchVecLen = 0
+        searchPUID = csvTest.product_uid[i]
+
+        searchTok = tokenize(csvTest.search_term[i])
+        for term in searchTok:
+            if term in attTermDict:
+                searchDict[term] = {'idf':attTermDict[term]['idf'], 'cosNormWt':0, }
+        
+        for term in searchDict:
+            searchVecLen = searchVecLen + (searchDict[term]['idf']**2)
+        searchVecLen = sqrt(searchVecLen)
+
+        for term in searchDict:
+            searchDict[term]['cosNormWt'] = searchDict[term]['idf']/searchVecLen
+
+        for term in searchDict:
+            if searchPUID in attTermDict[term]['puids']:
+                relevance = relevance + searchDict[term]['cosNormWt']*attTermDict[term]['puids'][searchPUID]['cosNormWt']
+            else: 
+                relevance = relevance - (1/len(searchDict))
+        #print(csvTest.id[i],' , ', '%.1f'%relevance)
+        writer.writerow([csvTest.id[i], '%.1f'%relevance])
+
+
 print('test time: ', time.time()-start_time)
